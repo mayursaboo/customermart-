@@ -1,0 +1,186 @@
+----- sql query for (non-continuous) Active customers for a given period                      ----------------- table created
+
+
+create table customermart.non_cont_active_cust_feb24_tbl005 as ( select * from (                         
+select *, row_number() over (partition by policy_no,  coalesce (certificate_no, '0'),pol_incept_date, pol_exp_date order by "timestamp"  desc) rn
+from (select distinct a.dc_unified_id, a.mobile_primary,a.mobile_secondary, a.email_primary, a.email_secondary,
+a.first_name, a.last_name, a.presentaddress_city, a.psnt_address_zip, 
+pr.policy_no, pr.customer_id, pcm.lob, pr.certificate_no, pr.num_reference_no, pr.timestamp, pr.record_type_desc, pr.record_type_cd,  pr.pol_incept_date, 
+pr.pol_exp_date, pr.renl_cert_no, pr.times_renewed_cnt, pr.channel, pr.product_name, pr.product_cd from registers.premium_register pr
+left join mappers.product_category_mapper pcm 
+on upper(trim( pr.product_name)) = upper(trim( pcm.product_name))
+left join( select * from (select mmp.dc_unified_id, mmp.mobile_primary, mmp.mobile_secondary, mmp.email_primary, mmp.email_secondary, 
+row_number() over (partition by mbdp.source_customer_id order by dc_action_date  desc) rnk, 
+mmp.first_name, mmp.last_name, mmp.presentaddress_city, mmp.psnt_address_zip,
+mbdp.source_customer_id from public.mastercraft_bulk_detail_prod mbdp join 
+public.mastercraft_master_prod mmp on mbdp.dc_unified_id = mmp.dc_unified_id where mmp.dc_active_flag=1) as ab 
+where rnk = 1) a
+on pr.customer_id = a.source_customer_id
+where  pr.channel in ('E-BUSINESS','A & H DIRECT MARKETING','D2C', 'DM',
+'DIRECT MARKETING','DM-DM','DIRECT TELEMARKETING','E-BUSINESS-E-BUSINESS'))as a ) as xyz where rn = 1)
+
+
+
+
+
+
+create table customermart.non_cont_4w_acti_feb24 as (                                            --------------------table created
+select * from  customermart.non_cont_active_cust_feb24_tbl005 
+where pol_incept_date <= current_date and 
+product_name  in ('MOTORPRIVATECARPOLICYINSURANCE','PRIVATECARINSURANCEPOLICY') 
+and record_type_desc != 'CANCELLATION') 
+
+
+create table customermart.non_cont_4w_acti_feb24_step3 as(                                          -------------------- table created
+select dc_unified_id, policy_no, pol_incept_date,  pol_exp_date, record_type_desc, "timestamp", month_diff/30 as month_diff from
+(select distinct dc_unified_id, policy_no, pol_incept_date, pol_exp_date, record_type_desc, "timestamp",
+pol_incept_date - LAG(pol_exp_date,1) OVER(PARTITION BY dc_unified_id order by pol_incept_date, pol_exp_date)  month_diff
+from customermart.non_cont_4w_acti_feb24
+group by dc_unified_id, policy_no, pol_incept_date, pol_exp_date, record_type_desc, "timestamp") as a)
+
+
+
+--------- 4W - february 2024
+
+
+create table customermart.non_cont_4w_acti_feb24_step4 as (                                     --------------------table created        
+select * from customermart.non_cont_4w_acti_feb24_step3 where 
+pol_incept_date between '2024-02-01' and '2024-02-29')
+
+select distinct a.dc_unified_id from customermart.non_cont_4w_acti_feb24_step3 a
+join customermart.non_cont_4w_acti_feb24_step4 b
+on a.dc_unified_id = b.dc_unified_id and a.pol_incept_date <= b.pol_incept_date
+where a.month_diff >= 12
+
+
+
+------------------------------------------------------TWO WHEELER ------------------------------------------------------------------------
+
+create table customermart.non_cont_2w_acti_feb24 as (                                             --------------------table created               
+select * from  customermart.non_cont_active_cust_feb24_tbl005 
+where pol_incept_date <= current_date and 
+product_name  = 'MOTORTWOWHEELERPOLICY' 
+and record_type_desc != 'CANCELLATION')
+
+
+create table customermart.non_cont_2w_acti_feb24_step3 as(                                          -------------------table created
+select dc_unified_id, policy_no, pol_incept_date,  pol_exp_date, record_type_desc, "timestamp", month_diff/30 as month_diff from
+(select distinct dc_unified_id, policy_no, pol_incept_date, pol_exp_date, record_type_desc, "timestamp",
+pol_incept_date - LAG(pol_exp_date,1) OVER(PARTITION BY dc_unified_id order by pol_incept_date, pol_exp_date)  month_diff
+from customermart.non_cont_2w_acti_feb24
+group by dc_unified_id, policy_no, pol_incept_date, pol_exp_date, record_type_desc, "timestamp") as a)
+
+
+
+
+---2W - february 2024--------------
+
+create table customermart.non_cont_2w_acti_feb24_step4 as (                                         -------------------table created                    
+select * from customermart.non_cont_2w_acti_feb24_step3  where 
+pol_incept_date between '2024-02-01' and '2024-02-29')
+
+select distinct a.dc_unified_id from customermart.non_cont_2w_acti_feb24_step3 a
+join customermart.non_cont_2w_acti_feb24_step4 b
+on a.dc_unified_id = b.dc_unified_id and a.pol_incept_date <= b.pol_incept_date
+where a.month_diff >= 12
+
+
+
+------------------------------------------------------------------HEALTH -----------------------------------------------------------------------------------
+
+
+create table customermart.non_cont_health_acti_feb24 as (                                       -------------------table created        
+select * from  customermart.non_cont_active_cust_feb24_tbl005 
+where pol_incept_date <= current_date and 
+lob  = 'Health' 
+and record_type_desc != 'CANCELLATION') 
+
+
+create table customermart.non_cont_health_acti_feb24_step3 as(                                   -------------------table created                    
+select dc_unified_id, policy_no, pol_incept_date,  pol_exp_date, record_type_desc, "timestamp", month_diff/30 as month_diff from
+(select distinct dc_unified_id, policy_no, pol_incept_date, pol_exp_date, record_type_desc, "timestamp",
+pol_incept_date - LAG(pol_exp_date,1) OVER(PARTITION BY dc_unified_id order by pol_incept_date, pol_exp_date)  month_diff
+from customermart.non_cont_health_acti_feb24
+group by dc_unified_id, policy_no, pol_incept_date, pol_exp_date, record_type_desc, "timestamp") as a)
+
+
+-----health - february 2024 ---------------------------
+
+
+create table customermart.non_cont_health_acti_feb24_step4 as (                                 -------------------table created                    
+select * from customermart.non_cont_health_acti_feb24_step3 where 
+pol_incept_date between '2024-02-01' and '2024-02-29')
+
+select distinct a.dc_unified_id from customermart.non_cont_health_acti_feb24_step3 a
+join customermart.non_cont_health_acti_feb24_step4 b
+on a.dc_unified_id = b.dc_unified_id and a.pol_incept_date <= b.pol_incept_date
+where a.month_diff >= 12
+
+
+
+--------------------------------------LTA -------------------------------------------
+
+
+create table customermart.non_cont_lta_acti_feb24 as (                                   ---------------table created                                
+select * from  customermart.non_cont_active_cust_feb24_tbl005 
+where pol_incept_date <= current_date and 
+lob  = 'LTA' 
+and record_type_desc != 'CANCELLATION') 
+
+
+create table customermart.non_cont_lta_acti_feb24_step3 as(                                  ---------------table created        
+select dc_unified_id, policy_no, pol_incept_date,  pol_exp_date, record_type_desc, "timestamp", month_diff/30 as month_diff from
+(select distinct dc_unified_id, policy_no, pol_incept_date, pol_exp_date, record_type_desc, "timestamp",
+pol_incept_date - LAG(pol_exp_date,1) OVER(PARTITION BY dc_unified_id order by pol_incept_date, pol_exp_date)  month_diff
+from customermart.non_cont_lta_acti_feb24
+group by dc_unified_id, policy_no, pol_incept_date, pol_exp_date, record_type_desc, "timestamp") as a)
+
+
+
+
+----LTA - february 2024-----------
+
+create table customermart.non_cont_lta_acti_feb24_step4 as (                            ---------------table created        
+select * from customermart.non_cont_lta_acti_feb24_step3 where 
+pol_incept_date between '2024-02-01' and '2024-02-29')
+
+select distinct a.dc_unified_id from customermart.non_cont_lta_acti_feb24_step3 a
+join customermart.non_cont_lta_acti_feb24_step4 b
+on a.dc_unified_id = b.dc_unified_id and a.pol_incept_date <= b.pol_incept_date
+where a.month_diff >= 12
+
+
+
+----------------------------E-BIZ CHANNEL---------------------------------------------------------
+
+
+create table customermart.non_cont_ebiz_acti_feb24 as (                                              ----------------table created                           
+select * from   customermart.non_cont_active_cust_feb24_tbl005 
+where pol_incept_date <= current_date and 
+record_type_desc != 'CANCELLATION') 
+
+
+create table customermart.non_cont_ebiz_acti_feb24_step3 as(                                                                   ----------------table created
+select dc_unified_id, policy_no, pol_incept_date,  pol_exp_date, record_type_desc, "timestamp", month_diff/30 as month_diff from
+(select distinct dc_unified_id, policy_no, pol_incept_date, pol_exp_date, record_type_desc, "timestamp",
+pol_incept_date - LAG(pol_exp_date,1) OVER(PARTITION BY dc_unified_id order by pol_incept_date, pol_exp_date)  month_diff
+from customermart.non_cont_ebiz_acti_feb24
+group by dc_unified_id, policy_no, pol_incept_date, pol_exp_date, record_type_desc, "timestamp") as a)
+
+
+
+--------E-biz - february - 2024
+
+
+create table customermart.non_cont_ebiz_acti_feb24_step4 as (                                               ----------------table created
+select * from customermart.non_cont_ebiz_acti_feb24_step3 where 
+pol_incept_date between '2024-02-01' and '2024-02-29')
+
+select distinct a.dc_unified_id from customermart.non_cont_ebiz_acti_feb24_step3 a
+join customermart.non_cont_ebiz_acti_feb24_step4 b
+on a.dc_unified_id = b.dc_unified_id and a.pol_incept_date <= b.pol_incept_date
+where a.month_diff >= 12
+
+
+
+
